@@ -1,7 +1,7 @@
 # CleanCity QA Test Plan
 
 **Project:** CleanCity - Waste Pickup Scheduler  
-**Version:** 1.0  
+**Version:**  
 **Date:** November 5, 2025  
 **Prepared by:** Software Testing Team  
 **Reviewed by:**   
@@ -23,10 +23,8 @@ The objective of this test plan is to ensure the CleanCity application functions
 - Accessibility and responsiveness testing
 
 ### Out of Scope
-- Backend API integration testing (handled by developers)
 - Payment gateway integration
-- Third-party API stress testing
-
+- 
 ---
 
 ## 3. Test Strategy
@@ -39,7 +37,7 @@ The objective of this test plan is to ensure the CleanCity application functions
 ### Tools:
 - Jest automated testing
 - Chrome DevTools for manual testing
-- Jira for issue tracking
+- Jira for issue tracking and project
 
 ---
 
