@@ -90,9 +90,23 @@ The objective of this test plan is to ensure the CleanCity application functions
 ---
 
 ## 9. Risks & Mitigation
-| Risk | Impact | Mitigation |
-|------|---------|------------|
-|  |
+
+| ID   | Feature (Testing Area)            | Risk Description | Likelihood | Impact   | Priority | Mitigation Strategy (Test Focus) |
+|------|----------------------------------|------------------|------------|----------|----------|----------------------------------|
+| A-01 | User Login/Registration | Security: Passwords are stored, retrieved, and compared in plain text in localStorage. Critical vulnerability. | High | Critical | High | (Security Test) Log in with sample user and inspect `cleancity_users` in DevTools to confirm passwords are visible in plain text. |
+| A-02 | Session Management | Security/Authorization: User role and session management are fully client-side and easily tampered with to escalate privileges. | High | Critical | High | (Security Test) Log in as normal user, modify `localStorage.currentUser.role` to `admin`, refresh, and verify admin access. |
+| A-03 | Password Validation | Functional/Security: Weak password rule — minimum length of 3 characters. | High | High | High | (Functional Test) Attempt to register users with 1–2 character passwords and confirm validation incorrectly passes. |
+| A-04 | User Management | Security: No authorization checks in user functions (IDOR vulnerability). Any user can modify/delete others. | High | High | High | (Security Test) As normal user, run `dataService.deleteUser('2')` and confirm the admin user is deleted. |
+| A-05 | User Registration | Security: User enumeration possible based on differing responses for existing vs non-existent emails. | Medium | High | Medium | (Security Test) Register using known and unknown emails; analyze response messages or delays revealing user existence. |
+| A-06 | User Login | Functional: Login success message appears briefly before redirect, causing UX confusion. | Medium | Low | Low | (Usability Test) Log in and verify the “Login successful! Redirecting...” message appears before dashboard navigation. |
+| W-01 | Pickup Scheduling | Functional: “Schedule Pickup” form does not save any data; new requests are discarded. | High | Critical | High | (Functional Test) Submit a pickup request, check `localStorage.pickupRequests` or Admin view, and verify it's missing. |
+| W-02 | Request Management | Security: Admin page (/admin) has no access control; any user or unauthenticated user can modify all requests. | High | Critical | High | (Security Test) As normal user or logged out, navigate to `/admin` and attempt to modify request status. |
+| W-03 | Status Tracking | Functional: Status changes do not record who completed the action; no audit trail. | Medium | High | Medium | (Audit Test) Update status to Completed and inspect localStorage — verify no `completedBy` or `completionDate`. |
+| W-04 | Pickup Scheduling (Negative Testing) | Functional: Past dates are allowed as “Preferred Pickup Date”, enabling impossible scheduling. | High | Medium | Medium | (Negative Test) Schedule a date in the past and verify the system accepts it without warnings. |
+| D-01 | Admin/Dashboard Data Flow | Security/Authorization: Dashboard displays global stats to all users, not just admins. | High | High | High | (Security Test) Log in as non-admin, open Dashboard, and confirm global statistics are shown. |
+| D-02 | Data Visualization (Bar Chart) | Functional: Malformed or null dates cause corrupted keys, potentially breaking charts. | Medium | Medium | Medium | (Data Integrity Test) Insert request with null/empty date and verify Dashboard renders without crashing. |
+| D-03 | Missed Pickups Metric | Functional: Metric ignores “Pending” requests, leading to misleading operational insights. | Medium | Medium | Medium | (Metric Test) Add many Pending requests and confirm metric only counts explicit Missed statuses. |
+| D-04 | Data Visualization (Bar Chart) | Functional: Chart cannot scale for large data volumes; labels overlap or truncate. | Low | Low | Low | (Stress Test – Deferred) Add high-volume data across 15+ months and verify chart behavior. |
 
 ---
 
