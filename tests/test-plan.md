@@ -110,5 +110,30 @@ The objective of this test plan is to ensure the CleanCity application functions
 
 ---
 
+# Coverage Summary
+
+## Risk Coverage Overview
+- Total Unique Risks Identified: 14  
+- Risks Covered by a Test Case (Tested or Deferred): 14  
+
+All identified risks are associated with at least one test case.
+
+---
+
+## Coverage Metrics
+
+| Metric | Calculation | Percentage |
+|--------|-------------|------------|
+| Tested Risks Percent | (14 / 14) × 100 | 100% |
+| Untested Risks Percent | (0 / 14) × 100 | 0% |
+
+---
+
+## Conclusion
+
+All 14 risks identified in the risk analysis have been fully mapped to corresponding test cases. Although one stress test (DASH-TC-004) was deferred, overall risk coverage remains at 100%.
+
+
+
 ## 10. References
 - 
