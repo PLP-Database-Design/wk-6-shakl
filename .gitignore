@@ -89,3 +89,11 @@ jspm_packages/
 
 # TernJS port file
 .tern-port 
+
+# Cypress example files
+
+tests/scripts/cypress-test/cypress/e2e/1-getting-started
+tests/scripts/cypress-test/cypress/e2e/2-advanced-examples
+tests/scripts/cypress-test/cypress/support
+tests/scripts/cypress-test/cypress/fixtures
+

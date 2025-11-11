@@ -1,0 +1,23 @@
+{
+  "name": "cypress-test",
+  "version": "1.0.0",
+  "description": "Tests using cypress framework",
+  "homepage": "https://github.com/I-Macharia/wk-6-shakl#readme",
+  "bugs": {
+    "url": "https://github.com/I-Macharia/wk-6-shakl/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/I-Macharia/wk-6-shakl.git"
+  },
+  "license": "ISC",
+  "author": "I-Macharia",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "test"
+  },
+  "devDependencies": {
+    "cypress": "^15.6.0"
+  }
+}
