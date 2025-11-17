@@ -134,74 +134,74 @@ jobs:
             
             # Jira description in Atlassian Document Format
             description=$(cat <<EOF
-  {
-  "type": "doc",
-  "version": 1,
-  "content": [
-    {
-      "type": "heading",
-      "attrs": {"level": 3},
-      "content": [{"type": "text", "text": "SonarCloud Issue Details"}]
-    },
-    {
-      "type": "paragraph",
-      "content": [
-        {"type": "text", "text": "Issue Key: ", "marks": [{"type": "strong"}]},
-        {"type": "text", "text": "${issue_key}"}
-      ]
-    },
-    {
-      "type": "paragraph",
-      "content": [
-        {"type": "text", "text": "Rule: ", "marks": [{"type": "strong"}]},
-        {"type": "text", "text": "${rule}"}
-      ]
-    },
-    {
-      "type": "paragraph",
-      "content": [
-        {"type": "text", "text": "Severity: ", "marks": [{"type": "strong"}]},
-        {"type": "text", "text": "${severity}"}
-      ]
-    },
-    {
-      "type": "paragraph",
-      "content": [
-        {"type": "text", "text": "Type: ", "marks": [{"type": "strong"}]},
-        {"type": "text", "text": "${type}"}
-      ]
-    },
-    {
-      "type": "paragraph",
-      "content": [
-        {"type": "text", "text": "File: ", "marks": [{"type": "strong"}]},
-        {"type": "text", "text": "${file}:${line}"}
-      ]
-    },
-    {
-      "type": "heading",
-      "attrs": {"level": 3},
-      "content": [{"type": "text", "text": "Issue Description"}]
-    },
-    {
-      "type": "paragraph",
-      "content": [{"type": "text", "text": "${message}"}]
-    },
-    {
-      "type": "paragraph",
-      "content": [
-        {"type": "text", "text": "View in SonarCloud: ", "marks": [{"type": "strong"}]},
-        {
-          "type": "text",
-          "text": "${sonar_link}",
-          "marks": [{"type": "link", "attrs": {"href": "${sonar_link}"}}]
-        }
-      ]
-    }
-  ]
-}
-EOF
-            )
+            {
+              "type": "doc",
+              "version": 1,
+              "content": [
+            {
+                "type": "heading",
+                "attrs": {"level": 3},
+                "content": [{"type": "text", "text": "SonarCloud Issue Details"}]
+                },
+           {
+                "type": "paragraph",
+                 "content": [
+                {"type": "text", "text": "Issue Key: ", "marks": [{"type": "strong"}]},
+                {"type": "text", "text": "${issue_key}"}
+                  ]
+                  },
+          {
+                "type": "paragraph",
+                 "content": [
+                {"type": "text", "text": "Rule: ", "marks": [{"type": "strong"}]},
+                {"type": "text", "text": "${rule}"}
+                  ]
+                  },
+          {
+                "type": "paragraph",
+                "content": [
+                {"type": "text", "text": "Severity: ", "marks": [{"type": "strong"}]},
+                {"type": "text", "text": "${severity}"}
+                ]
+                },
+          {
+              "type": "paragraph",
+              "content": [
+              {"type": "text", "text": "Type: ", "marks": [{"type": "strong"}]},
+              {"type": "text", "text": "${type}"}
+                ]
+                },
+          {
+              "type": "paragraph",
+              "content": [
+              {"type": "text", "text": "File: ", "marks": [{"type": "strong"}]},
+              {"type": "text", "text": "${file}:${line}"}
+                ]
+                },
+          {
+            "type": "heading",
+            "attrs": {"level": 3},
+            "content": [{"type": "text", "text": "Issue Description"}]
+              },
+              {
+              "type": "paragraph",
+              "content": [{"type": "text", "text": "${message}"}]
+            },
+          {
+            "type": "paragraph",
+            "content": [
+            {"type": "text", "text": "View in SonarCloud: ", "marks": [{"type": "strong"}]},
+            {
+              "type": "text",
+              "text": "${sonar_link}",
+              "marks": [{"type": "link", "attrs": {"href": "${sonar_link}"}}]
+            }
+                ]
+                }
+                ]
+                }
+                EOF
+                    )
 
             # Check if Jira issue already exists
             search_jql=$(printf 'text ~ "%s" ORDER BY created DESC' "$issue_key" | jq -sRr @uri)
