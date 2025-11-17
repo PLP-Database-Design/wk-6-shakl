@@ -19,22 +19,42 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Shallow clones should be disabled for better analysis
+
+      # FIX: Set up Java 17+ (required by SonarCloud)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Cache SonarCloud packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
 
       - name: Run SonarCloud analysis
-        uses: SonarSource/sonarcloud-github-action@v1
+        uses: SonarSource/sonarcloud-github-action@v2
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed for PR decoration
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
             -Dsonar.projectKey=I-Macharia_wk-6-shakl
             -Dsonar.organization=i-macharia
             -Dsonar.sources=.
+            -Dsonar.exclusions=**/node_modules/**,**/tests/**,**/*.test.js,**/*.spec.js
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
 
   create-jira-issues:
     needs: analyze
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup tools
         run: |
           sudo apt-get update -y
@@ -51,11 +71,21 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Add delay to allow SonarCloud to process results
+          echo "Waiting 30 seconds for SonarCloud to process analysis..."
+          sleep 30
+
           SONAR_API="https://sonarcloud.io/api/issues/search?componentKeys=${SONAR_PROJECT_KEY}&resolved=false&types=VULNERABILITY,BUG,CODE_SMELL&ps=500"
           echo "Calling SonarCloud API for project ${SONAR_PROJECT_KEY}"
           issues_json=$(curl -s -u "${SONAR_TOKEN}:" "${SONAR_API}")
 
-          total=$(echo "$issues_json" | jq -r '.total')
+          # Check if curl was successful
+          if [ $? -ne 0 ]; then
+            echo "ERROR: Failed to fetch issues from SonarCloud"
+            exit 1
+          fi
+
+          total=$(echo "$issues_json" | jq -r '.total // 0')
           echo "Found $total unresolved Sonar issues"
 
           if [ "$total" -eq 0 ]; then
@@ -73,10 +103,10 @@ jobs:
             message=$(echo "$issue" | jq -r '.message' | sed 's/"/\\"/g')
             sonar_link="https://sonarcloud.io/project/issues?id=${SONAR_PROJECT_KEY}&open=${issue_key}"
 
-            summary="SonarCloud ${severity}: ${rule} in ${file}:${line} (${issue_key})"
-            description="SonarCloud issue: ${issue_key}\n\nRule: ${rule}\nSeverity: ${severity}\nComponent: ${comp}\nLine: ${line}\n\nMessage:\n${message}\n\nSonar link: ${sonar_link}"
+            summary="[SonarCloud] ${severity}: ${rule} in ${file}:${line}"
+            description="*SonarCloud Issue:* ${issue_key}\n\n*Rule:* ${rule}\n*Severity:* ${severity}\n*Component:* ${comp}\n*Line:* ${line}\n\n*Message:*\n{quote}${message}{quote}\n\n*Sonar Link:* ${sonar_link}"
 
-            # URL encode the issue key for JQL query using printf
+            # URL encode the issue key for JQL query
             jql=$(printf 'summary ~~ "%s"' "$issue_key" | python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read()))")
 
             search_url="https://${JIRA_HOST}/rest/api/3/search?jql=${jql}&fields=key"
@@ -84,28 +114,77 @@ jobs:
 
             existing_total=$(echo "$existing" | jq -r '.total // 0')
             if [ "$existing_total" != "0" ]; then
-              echo "Jira issue already exists for Sonar issue ${issue_key}; skipping creation."
+              existing_key=$(echo "$existing" | jq -r '.issues[0].key')
+              echo "✓ Jira issue ${existing_key} already exists for Sonar issue ${issue_key}; skipping creation."
               continue
             fi
 
-            payload=$(jq -n --arg proj "${JIRA_PROJECT_KEY}" \
-                            --arg summ "$summary" \
-                            --arg desc "$description" \
-                            '{fields: {project: {key: $proj}, summary: $summ, description: $desc, issuetype: {name: "Bug"}}}')
+            # Map SonarCloud severity to Jira priority
+            case "$severity" in
+              CRITICAL|BLOCKER)
+                priority="Highest"
+                ;;
+              MAJOR)
+                priority="High"
+                ;;
+              MINOR)
+                priority="Medium"
+                ;;
+              INFO)
+                priority="Low"
+                ;;
+              *)
+                priority="Medium"
+                ;;
+            esac
 
-            echo "Creating Jira issue for Sonar issue ${issue_key}"
-            create_resp=$(curl -s -w "\n%{http_code}" -u "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" \
-              -X POST -H "Content-Type: application/json" \
+            # Create Jira issue with proper formatting
+            payload=$(jq -n \
+              --arg proj "${JIRA_PROJECT_KEY}" \
+              --arg summ "$summary" \
+              --arg desc "$description" \
+              --arg prior "$priority" \
+              '{
+                fields: {
+                  project: {key: $proj},
+                  summary: $summ,
+                  description: {
+                    type: "doc",
+                    version: 1,
+                    content: [
+                      {
+                        type: "paragraph",
+                        content: [
+                          {type: "text", text: $desc}
+                        ]
+                      }
+                    ]
+                  },
+                  issuetype: {name: "Bug"},
+                  priority: {name: $prior},
+                  labels: ["sonarcloud", "automated"]
+                }
+              }')
+
+            echo "Creating Jira issue for Sonar issue ${issue_key} (severity: ${severity})"
+            create_resp=$(curl -s -w "\n%{http_code}" \
+              -u "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" \
+              -X POST \
+              -H "Content-Type: application/json" \
               --data "$payload" \
               "https://${JIRA_HOST}/rest/api/3/issue")
+            
             http_code=$(echo "$create_resp" | tail -n1)
             body=$(echo "$create_resp" | sed '$d')
 
             if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
               jira_key=$(echo "$body" | jq -r '.key')
-              echo "Created Jira issue ${jira_key} for Sonar issue ${issue_key}"
+              echo "✓ Created Jira issue ${jira_key} for Sonar issue ${issue_key}"
             else
-              echo "Failed to create Jira issue for ${issue_key}: HTTP ${http_code}"
-              echo "$body"
+              echo "✗ Failed to create Jira issue for ${issue_key}: HTTP ${http_code}"
+              echo "$body" | jq '.' || echo "$body"
             fi
           done
+
+          echo ""
+          echo "Jira issue creation process completed."
