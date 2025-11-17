@@ -247,12 +247,19 @@ jobs:
             # Create Jira issue
             echo "  📝 Creating Jira issue for ${issue_key} (${severity} ${type})"
             
-            create_resp=$(curl -s -w "\n%{http_code}" \
-              -u "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" \
-              -X POST \
-              -H "Content-Type: application/json" \
-              --data "$payload" \
-              "https://${JIRA_HOST}/rest/api/3/issue" 2>/dev/null || echo "000")
+            echo "DEBUG: Attempting to create issue..."
+            create_resp=$(curl -v -s -w "\n%{http_code}" \
+                -u "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" \
+                -X POST \
+                -H "Content-Type: application/json" \
+                --data "$payload" \
+                "https://${JIRA_HOST}/rest/api/3/issue" 2>&1 || echo "000") # 2>&1 captures error output
+          
+            echo "DEBUG: Raw cURL Response:"
+            echo "$create_resp"
+
+            http_code=$(echo "$create_resp" | grep -E '^[0-9]{3}$' | tail -n1 || echo "000")
+            body=$(echo "$create_resp" | sed -E '/^[0-9]{3}$/d')
             
             http_code=$(echo "$create_resp" | tail -n1)
             body=$(echo "$create_resp" | sed '$d')
