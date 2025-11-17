@@ -172,11 +172,13 @@ def test_selenium_cleancity_User_Registration():
 # Run the test(disable after test execution)
 # test_selenium_cleancity_User_Registration()
 
-# AUTH-TC-003	2025-11-05	Password Validation	Weak 2-character password accepted.	1. Go to Register page.
+# AUTH-TC-003	2025-11-05	Password Validation	Weak 2-character password accepted.	
+# 1. Go to Register page.
 # 2. Fill in all fields.
 # 3. Use password "a1".	Name:"Test"
 # Email:test@test.com
-# Password:"a1"	System accepts weak password (Expected Failure).	Account registered successfully with weak password "a1".	
+# Password:"a1"	System accepts weak password (Expected Failure).	
+# Account registered successfully with weak password "a1".	
 # Fail
 
 # Steps to Reproduce:
