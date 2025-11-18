@@ -118,76 +118,85 @@ jobs:
             sonar_link="https://sonarcloud.io/project/issues?id=${SONAR_PROJECT_KEY}&open=${issue_key}"
             summary="[SonarCloud ${type}] ${severity}: ${rule} in ${file}"
 
-            # Jira description in JSON (variables expanded)
-              description=$(cat << EOF
-            {
-              "type": "doc",
-              "version": 1,
-              "content": [
-                {
-                  "type": "heading",
-                  "attrs": {"level": 3},
-                  "content": [{"type": "text", "text": "SonarCloud Issue Details"}]
-                },
-                {
-                  "type": "paragraph",
-                  "content": [
-                    {"type": "text", "text": "Issue Key: ", "marks": [{"type": "strong"}]},
-                    {"type": "text", "text": "${issue_key}"}
-                  ]
-                },
-                {
-                  "type": "paragraph",
-                  "content": [
-                    {"type": "text", "text": "Rule: ", "marks": [{"type": "strong"}]},
-                    {"type": "text", "text": "${rule}"}
-                  ]
-                },
-                {
-                  "type": "paragraph",
-                  "content": [
-                    {"type": "text", "text": "Severity: ", "marks": [{"type": "strong"}]},
-                    {"type": "text", "text": "${severity}"}
-                  ]
-                },
-                {
-                  "type": "paragraph",
-                  "content": [
-                    {"type": "text", "text": "Type: ", "marks": [{"type": "strong"}]},
-                    {"type": "text", "text": "${type}"}
-                  ]
-                },
-                {
-                  "type": "paragraph",
-                  "content": [
-                    {"type": "text", "text": "File: ", "marks": [{"type": "strong"}]},
-                    {"type": "text", "text": "${file}:${line}"}
-                  ]
-                },
-                {
-                  "type": "heading",
-                  "attrs": {"level": 3},
-                  "content": [{"type": "text", "text": "Issue Description"}]
-                },
-                {
-                  "type": "paragraph",
-                  "content": [{"type": "text", "text": "${message}"}]
-                },
-                {
-                  "type": "paragraph",
-                  "content": [
-                    {"type": "text", "text": "View in SonarCloud: ", "marks": [{"type": "strong"}]},
-                    {
-                      "type": "text",
-                      "text": "${sonar_link}",
-                      "marks": [{"type": "link", "attrs": {"href": "${sonar_link}"}}]
-                    }
-                  ]
-                }
-              ]
-            }
-          EOF
-          )
+            # Escape special characters for JSON
+            message_escaped=$(echo "$message" | jq -Rs .)
+            
+            # Jira description in JSON (FIXED: using EOF without quotes for variable expansion)
+            description=$(jq -n \
+              --arg ik "$issue_key" \
+              --arg rl "$rule" \
+              --arg sv "$severity" \
+              --arg tp "$type" \
+              --arg fl "$file" \
+              --arg ln "$line" \
+              --argjson msg "$message_escaped" \
+              --arg sl "$sonar_link" \
+              '{
+                "type": "doc",
+                "version": 1,
+                "content": [
+                  {
+                    "type": "heading",
+                    "attrs": {"level": 3},
+                    "content": [{"type": "text", "text": "SonarCloud Issue Details"}]
+                  },
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {"type": "text", "text": "Issue Key: ", "marks": [{"type": "strong"}]},
+                      {"type": "text", "text": $ik}
+                    ]
+                  },
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {"type": "text", "text": "Rule: ", "marks": [{"type": "strong"}]},
+                      {"type": "text", "text": $rl}
+                    ]
+                  },
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {"type": "text", "text": "Severity: ", "marks": [{"type": "strong"}]},
+                      {"type": "text", "text": $sv}
+                    ]
+                  },
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {"type": "text", "text": "Type: ", "marks": [{"type": "strong"}]},
+                      {"type": "text", "text": $tp}
+                    ]
+                  },
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {"type": "text", "text": "File: ", "marks": [{"type": "strong"}]},
+                      {"type": "text", "text": ($fl + ":" + $ln)}
+                    ]
+                  },
+                  {
+                    "type": "heading",
+                    "attrs": {"level": 3},
+                    "content": [{"type": "text", "text": "Issue Description"}]
+                  },
+                  {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": $msg}]
+                  },
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {"type": "text", "text": "View in SonarCloud: ", "marks": [{"type": "strong"}]},
+                      {
+                        "type": "text",
+                        "text": $sl,
+                        "marks": [{"type": "link", "attrs": {"href": $sl}}]
+                      }
+                    ]
+                  }
+                ]
+              }')
 
             # Check if Jira issue already exists
             search_jql=$(printf 'text ~ "%s" ORDER BY created DESC' "$issue_key" | jq -sRr @uri)
@@ -215,20 +224,90 @@ jobs:
               *) priority="Medium" ;;
             esac
 
-            # Map SonarCloud type to Jira issue type
+            # Map SonarCloud type to Jira issue type - ALL BUGS NOW
             case "$type" in
-              BUG|VULNERABILITY) issue_type="Bug" ;;
-              CODE_SMELL) issue_type="Bug" ;;
+              BUG|VULNERABILITY|CODE_SMELL) issue_type="Bug" ;;
               *) issue_type="Bug" ;;
             esac
 
-            # Create Jira issue payload
+            # Prepare custom field values
+            steps_to_reproduce=$(jq -n \
+              --arg sl "$sonar_link" \
+              --arg msg "$message" \
+              '{
+                "type": "doc",
+                "version": 1,
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {"type": "text", "text": "1. Review the code at "},
+                      {"type": "text", "text": $sl, "marks": [{"type": "link", "attrs": {"href": $sl}}]}
+                    ]
+                  },
+                  {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": ("2. Check line " + $msg)}]
+                  }
+                ]
+              }')
+            
+            expected_vs_actual=$(jq -n \
+              --arg rule "$rule" \
+              --arg msg "$message" \
+              '{
+                "type": "doc",
+                "version": 1,
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {"type": "text", "text": "Expected: ", "marks": [{"type": "strong"}]},
+                      {"type": "text", "text": ("Code should comply with " + $rule)}
+                    ]
+                  },
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {"type": "text", "text": "Actual: ", "marks": [{"type": "strong"}]},
+                      {"type": "text", "text": $msg}
+                    ]
+                  }
+                ]
+              }')
+            
+            environment_text=$(jq -n \
+              --arg file "$file" \
+              --arg line "$line" \
+              '{
+                "type": "doc",
+                "version": 1,
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {"type": "text", "text": "File: ", "marks": [{"type": "strong"}]},
+                      {"type": "text", "text": ($file + ":" + $line)}
+                    ]
+                  },
+                  {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Detected by: SonarCloud"}]
+                  }
+                ]
+              }')
+
+            # Create Jira issue payload with required custom fields
             payload=$(jq -n \
               --arg proj "${JIRA_PROJECT_KEY}" \
               --arg summ "$summary" \
               --argjson desc "$description" \
               --arg prior "$priority" \
               --arg itype "$issue_type" \
+              --arg sev "$severity" \
+              --argjson steps "$steps_to_reproduce" \
+              --argjson expected "$expected_vs_actual" \
+              --argjson env "$environment_text" \
               '{
                 fields: {
                   project: {key: $proj},
@@ -240,43 +319,42 @@ jobs:
                     "sonarcloud",
                     "automated",
                     ($itype|ascii_downcase)
-                  ]
+                  ],
+                  customfield_10041: $steps,
+                  customfield_10042: $sev,
+                  customfield_10043: $expected,
+                  customfield_10044: $env,
+                  customfield_10039: []
                 }
               }')
 
             # Create Jira issue
-          echo "  📝 Creating Jira issue for ${issue_key} (${severity} ${type})"
-          
-          # REVERTING CURL TO CLEAN MODE:
-          # -s: Silent mode (suppresses progress/connection info)
-          # 2>/dev/null: Suppresses error messages (like the "Closing connection" line)
-          create_resp=$(curl -s -w "\n%{http_code}" \
-            -u "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" \
-            -X POST \
-            -H "Content-Type: application/json" \
-            --data "$payload" \
-            "https://${JIRA_HOST}/rest/api/3/issue" 2>/dev/null || echo "000")
-          
-          # Body is everything BUT the last line (the HTTP code)
-          http_code=$(echo "$create_resp" | tail -n1)
-          body=$(echo "$create_resp" | sed '$d')
+            echo "  📝 Creating Jira issue for ${issue_key} (${severity} ${type})"
+            
+            create_resp=$(curl -s -w "\n%{http_code}" \
+              -u "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" \
+              -X POST \
+              -H "Content-Type: application/json" \
+              --data "$payload" \
+              "https://${JIRA_HOST}/rest/api/3/issue" 2>/dev/null || echo "000")
+            
+            # Body is everything BUT the last line (the HTTP code)
+            http_code=$(echo "$create_resp" | tail -n1)
+            body=$(echo "$create_resp" | sed '$d')
 
-          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
-            # We must use grep to extract *only* the JSON line from the body
-            # to be absolutely sure we don't pass junk data to jq.
-            json_line=$(echo "$body" | grep -E '^{.*\}$')
-            jira_key=$(echo "$json_line" | jq -r '.key // "unknown"')
-            jira_url="https://${JIRA_HOST}/browse/${jira_key}"
-            echo "  ✅ Created ${jira_key}: ${jira_url}"
-            ((created++)) || true
-          else
-            echo "  ❌ Failed to create Jira issue (HTTP ${http_code})"
-            # Use grep here too to ensure only the potential error body is printed
-            echo "$body" | grep -E '^{.*\}$' | jq '.' 2>/dev/null || echo "$body"
-            ((failed++)) || true
-          fi
-          
-          sleep 0.5
+            if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+              json_line=$(echo "$body" | grep -E '^{.*\}$')
+              jira_key=$(echo "$json_line" | jq -r '.key // "unknown"')
+              jira_url="https://${JIRA_HOST}/browse/${jira_key}"
+              echo "  ✅ Created ${jira_key}: ${jira_url}"
+              ((created++)) || true
+            else
+              echo "  ❌ Failed to create Jira issue (HTTP ${http_code})"
+              echo "$body" | grep -E '^{.*\}$' | jq '.' 2>/dev/null || echo "$body"
+              ((failed++)) || true
+            fi
+            
+            sleep 0.5
           done
 
           echo ""
