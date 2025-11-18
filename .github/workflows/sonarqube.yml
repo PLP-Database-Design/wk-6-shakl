@@ -121,7 +121,7 @@ jobs:
             # Escape special characters for JSON
             message_escaped=$(echo "$message" | jq -Rs .)
             
-            # Jira description in JSON (FIXED: using EOF without quotes for variable expansion)
+            # Jira description in JSON
             description=$(jq -n \
               --arg ik "$issue_key" \
               --arg rl "$rule" \
@@ -224,7 +224,17 @@ jobs:
               *) priority="Medium" ;;
             esac
 
-            # Map SonarCloud type to Jira issue type - ALL BUGS NOW
+            # Map SonarCloud severity to Jira custom field format (Title Case)
+            case "$severity" in
+              BLOCKER) jira_severity="Blocker" ;;
+              CRITICAL) jira_severity="Critical" ;;
+              MAJOR) jira_severity="Major" ;;
+              MINOR) jira_severity="Minor" ;;
+              INFO) jira_severity="Minor" ;;
+              *) jira_severity="Major" ;;
+            esac
+
+            # Map SonarCloud type to Jira issue type
             case "$type" in
               BUG|VULNERABILITY|CODE_SMELL) issue_type="Bug" ;;
               *) issue_type="Bug" ;;
@@ -277,18 +287,17 @@ jobs:
               }')
 
             # Create Jira issue payload with required custom fields
-            # customfield_10042 (Severity) and customfield_10044 (Environment) need to be objects with 'name' or 'id'
+            # FIXED: Mapped severity to proper Title Case using $jira_severity
+            # FIXED: Removed customfield_10044 (Environment) as file paths are not valid options for a Select List
             payload=$(jq -n \
               --arg proj "${JIRA_PROJECT_KEY}" \
               --arg summ "$summary" \
               --argjson desc "$description" \
               --arg prior "$priority" \
               --arg itype "$issue_type" \
-              --arg sev "$severity" \
+              --arg sev "$jira_severity" \
               --argjson steps "$steps_to_reproduce" \
               --argjson expected "$expected_vs_actual" \
-              --arg file "$file" \
-              --arg line "$line" \
               '{
                 fields: {
                   project: {key: $proj},
@@ -304,7 +313,6 @@ jobs:
                   customfield_10041: $steps,
                   customfield_10042: {name: $sev},
                   customfield_10043: $expected,
-                  customfield_10044: {name: ($file + ":" + $line)},
                   customfield_10039: []
                 }
               }')
