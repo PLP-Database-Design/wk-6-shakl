@@ -294,7 +294,6 @@ jobs:
               }')
 
             # Create Jira issue payload
-            # customfield_10044 (Environment) uses "Chrome" (a valid option)
             payload=$(jq -n \
               --arg proj "${JIRA_PROJECT_KEY}" \
               --arg summ "$summary" \
@@ -325,6 +324,7 @@ jobs:
                 }
               }')
 
+            # --- STEP 1: CREATE JIRA ISSUE ---
             echo "  📝 Creating Jira issue for ${issue_key} (Severity: ${jira_severity})"
             
             create_resp=$(curl -s -w "\n%{http_code}" \
@@ -343,6 +343,39 @@ jobs:
               jira_url="https://${JIRA_HOST}/browse/${jira_key}"
               echo "  ✅ Created ${jira_key}: ${jira_url}"
               ((created++)) || true
+
+              # --- STEP 2: CREATE LOCAL REPORT FILE ---
+              TEMP_FILE="sonar_report_${issue_key}.txt"
+              echo "SonarCloud Issue Details" > "$TEMP_FILE"
+              echo "------------------------" >> "$TEMP_FILE"
+              echo "Issue Key: $issue_key" >> "$TEMP_FILE"
+              echo "Rule: $rule" >> "$TEMP_FILE"
+              echo "Severity: $severity" >> "$TEMP_FILE"
+              echo "Type: $type" >> "$TEMP_FILE"
+              echo "File: $file:$line" >> "$TEMP_FILE"
+              echo "Message: $message" >> "$TEMP_FILE"
+              echo "SonarCloud Link: $sonar_link" >> "$TEMP_FILE"
+              echo "  📄 Created local attachment file: $TEMP_FILE"
+
+              # --- STEP 3: ATTACH FILE TO JIRA ISSUE ---
+              attach_resp=$(curl -s -w "\n%{http_code}" \
+                -u "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" \
+                -X POST \
+                -H "X-Atlassian-Token: no-check" \
+                -F "file=@$TEMP_FILE" \
+                "https://${JIRA_HOST}/rest/api/3/issue/${jira_key}/attachments" 2>/dev/null || echo "000")
+              
+              attach_http_code=$(echo "$attach_resp" | tail -n1)
+              
+              if [ "$attach_http_code" -ge 200 ] && [ "$attach_http_code" -lt 300 ]; then
+                echo "  📎 Attachment uploaded successfully (HTTP ${attach_http_code})"
+              else
+                echo "  ❌ Failed to upload attachment (HTTP ${attach_http_code})"
+              fi
+              
+              # Clean up local file
+              rm "$TEMP_FILE"
+
             else
               echo "  ❌ Failed to create Jira issue (HTTP ${http_code})"
               echo "$body" | grep -E '^{.*\}$' | jq '.' 2>/dev/null || echo "$body"
