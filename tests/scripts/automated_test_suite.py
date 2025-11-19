@@ -1,0 +1,485 @@
+"""
+CleanCity Automated Test Suite with GitHub Issue Creation
+==========================================================
+Executes 80 test cases and automatically creates GitHub issues for failures.
+
+Requirements:
+    pip install pytest selenium requests python-dotenv pytest-html
+
+Setup:
+    1. Create .env file with: GITHUB_TOKEN=your_personal_access_token
+    2. Update GITHUB_REPO with your repository
+    3. Run: pytest test_cleancity_automated.py --html=report.html
+"""
+
+import pytest
+import os
+import json
+import time
+from datetime import datetime
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
+import requests
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Configuration
+BASE_URL = "http://localhost:3000"
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+GITHUB_REPO = "yourusername/yourrepo"  # Update this!
+GITHUB_API = f"https://api.github.com/repos/{GITHUB_REPO}/issues"
+SCREENSHOT_DIR = "tests/screenshots"
+EVIDENCE_DIR = "tests/evidence"
+
+# Ensure directories exist
+os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+os.makedirs(EVIDENCE_DIR, exist_ok=True)
+
+# Test data
+TEST_USERS = {
+    "normal": {"email": "user@cleancity.com", "password": "password123"},
+    "admin": {"email": "admin@cleancity.com", "password": "AdminPass123"},
+    "new": {"email": "newuser@test.com", "password": "NewPass123", "name": "New User"}
+}
+
+
+class GitHubIssueCreator:
+    """Handles automatic GitHub issue creation for test failures"""
+    
+    @staticmethod
+    def create_issue(test_id, title, body, labels=["bug", "automated-test"]):
+        """Create a GitHub issue for a failed test"""
+        if not GITHUB_TOKEN:
+            print(f"⚠️  No GitHub token - skipping issue creation for {test_id}")
+            return None
+        
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        
+        data = {
+            "title": f"[{test_id}] {title}",
+            "body": body,
+            "labels": labels
+        }
+        
+        try:
+            response = requests.post(GITHUB_API, headers=headers, json=data)
+            if response.status_code == 201:
+                issue_url = response.json()["html_url"]
+                print(f"✅ Created issue: {issue_url}")
+                return issue_url
+            else:
+                print(f"❌ Failed to create issue: {response.status_code}")
+                return None
+        except Exception as e:
+            print(f"❌ Error creating issue: {str(e)}")
+            return None
+
+
+class TestBase:
+    """Base class with common test utilities"""
+    
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        """Setup browser before each test"""
+        self.driver = webdriver.Chrome()
+        self.driver.implicitly_wait(10)
+        self.driver.maximize_window()
+        yield
+        self.driver.quit()
+    
+    def take_screenshot(self, test_id):
+        """Capture screenshot for evidence"""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{SCREENSHOT_DIR}/{test_id}_{timestamp}.png"
+        self.driver.save_screenshot(filename)
+        return filename
+    
+    def login(self, user_type="normal"):
+        """Helper to login as different user types"""
+        user = TEST_USERS[user_type]
+        self.driver.get(f"{BASE_URL}/#/login")
+        WebDriverWait(self.driver, 10).until(
+            EC.presence_of_element_located((By.ID, "login-email"))
+        )
+        self.driver.find_element(By.ID, "login-email").send_keys(user["email"])
+        self.driver.find_element(By.ID, "login-password").send_keys(user["password"])
+        self.driver.find_element(By.CSS_SELECTOR, ".login-btn").click()
+        time.sleep(3)
+    
+    def get_localstorage(self, key):
+        """Get localStorage value"""
+        return self.driver.execute_script(f"return localStorage.getItem('{key}');")
+    
+    def set_localstorage(self, key, value):
+        """Set localStorage value"""
+        self.driver.execute_script(f"localStorage.setItem('{key}', '{value}');")
+    
+    def handle_test_failure(self, test_id, description, expected, actual, severity="High"):
+        """Handle test failure: screenshot + GitHub issue"""
+        screenshot = self.take_screenshot(test_id)
+        
+        # Create detailed GitHub issue body
+        issue_body = f"""
+## Test Case: {test_id}
+
+**Description:** {description}
+
+**Severity:** {severity}
+
+**Expected Result:**
+{expected}
+
+**Actual Result:**
+{actual}
+
+**Evidence:**
+![Screenshot]({screenshot})
+
+**Environment:**
+- Browser: Chrome
+- URL: {self.driver.current_url}
+- Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+
+**Steps to Reproduce:**
+See test case documentation for detailed steps.
+
+---
+*Automatically generated by test suite*
+"""
+        
+        # Create GitHub issue
+        GitHubIssueCreator.create_issue(
+            test_id=test_id,
+            title=description,
+            body=issue_body,
+            labels=["bug", "automated-test", f"severity-{severity.lower()}"]
+        )
+
+
+# ============================================================================
+# AUTHENTICATION MODULE TESTS (AUTH-TC-001 to AUTH-TC-015)
+# ============================================================================
+
+# class TestAuthentication(TestBase):
+#     """Test cases for authentication module"""
+    
+#     def test_auth_tc_001_password_plaintext(self):
+#         """AUTH-TC-001: Verify passwords stored in plain text"""
+#         self.login("normal")
+#         users_data = self.get_localstorage("cleanCity_users")
+        
+#         assert users_data is not None, "Users data not found in localStorage"
+#         users = json.loads(users_data)
+        
+#         # Check if any password is in plain text
+#         has_plaintext = any("password" in str(user).lower() for user in users)
+        
+#         if has_plaintext:
+#             self.handle_test_failure(
+#                 test_id="AUTH-TC-001",
+#                 description="Passwords stored in plain text",
+#                 expected="Passwords should be hashed",
+#                 actual="Passwords visible in plain text in localStorage",
+#                 severity="Critical"
+#             )
+#             pytest.fail("Security Issue: Plain text passwords found")
+    
+    def test_auth_tc_002_role_escalation(self):
+        """AUTH-TC-002: Verify privilege escalation via localStorage"""
+        self.login("normal")
+        
+        # Tamper with role
+        current_user = json.loads(self.get_localstorage("cleanCity_currentUser"))
+        current_user["role"] = "admin"
+        self.set_localstorage("cleanCity_currentUser", json.dumps(current_user))
+        
+        # Refresh and check if admin access granted
+        self.driver.refresh()
+        time.sleep(2)
+        
+        try:
+            admin_link = self.driver.find_element(By.LINK_TEXT, "Admin")
+            if admin_link.is_displayed():
+                self.handle_test_failure(
+                    test_id="AUTH-TC-002",
+                    description="Privilege escalation via localStorage tampering",
+                    expected="Should deny admin access",
+                    actual="Admin link visible and accessible",
+                    severity="Critical"
+                )
+                pytest.fail("Security Issue: Privilege escalation successful")
+        except NoSuchElementException:
+            pass  # Expected behavior
+    
+    def test_auth_tc_003_weak_password(self):
+        """AUTH-TC-003: Weak password accepted"""
+        self.driver.get(f"{BASE_URL}/register")
+        
+        self.driver.find_element(By.ID, "register-name").send_keys("Test User")
+        self.driver.find_element(By.ID, "register-email").send_keys("weak@test.com")
+        self.driver.find_element(By.ID, "register-password").send_keys("a1")
+        self.driver.find_element(By.CSS_SELECTOR, ".register-btn").click()
+        
+        time.sleep(2)
+        
+        # Check if registration succeeded
+        if "login" in self.driver.current_url:
+            self.handle_test_failure(
+                test_id="AUTH-TC-003",
+                description="Weak 2-character password accepted",
+                expected="Should reject passwords < 8 characters",
+                actual="Password 'a1' accepted successfully",
+                severity="High"
+            )
+            pytest.fail("Security Issue: Weak password accepted")
+    
+    def test_auth_tc_007_invalid_email(self):
+        """AUTH-TC-007: Invalid email format accepted"""
+        self.driver.get(f"{BASE_URL}/register")
+        
+        self.driver.find_element(By.ID, "register-name").send_keys("Test")
+        self.driver.find_element(By.ID, "register-email").send_keys("notanemail")
+        self.driver.find_element(By.ID, "register-password").send_keys("Password123")
+        self.driver.find_element(By.CSS_SELECTOR, ".register-btn").click()
+        
+        time.sleep(2)
+        
+        # Check if form accepted invalid email
+        if "login" in self.driver.current_url or "profile" in self.driver.current_url:
+            self.handle_test_failure(
+                test_id="AUTH-TC-007",
+                description="Invalid email format accepted",
+                expected="Should reject invalid email",
+                actual="Email 'notanemail' accepted",
+                severity="High"
+            )
+            pytest.fail("Validation Issue: Invalid email accepted")
+    
+    def test_auth_tc_009_duplicate_email(self):
+        """AUTH-TC-009: Duplicate email allowed"""
+        self.driver.get(f"{BASE_URL}/register")
+        
+        # Try to register with existing admin email
+        self.driver.find_element(By.ID, "register-name").send_keys("Duplicate")
+        self.driver.find_element(By.ID, "register-email").send_keys("admin@cleancity.com")
+        self.driver.find_element(By.ID, "register-password").send_keys("Password123")
+        self.driver.find_element(By.CSS_SELECTOR, ".register-btn").click()
+        
+        time.sleep(2)
+        
+        # Should show error, not proceed
+        if "profile" in self.driver.current_url:
+            self.handle_test_failure(
+                test_id="AUTH-TC-009",
+                description="Duplicate email registration allowed",
+                expected="Should reject duplicate email",
+                actual="Existing email accepted for new account",
+                severity="High"
+            )
+            pytest.fail("Validation Issue: Duplicate email allowed")
+
+
+# ============================================================================
+# WASTE MANAGEMENT MODULE TESTS (WASTE-TC-001 to WASTE-TC-015)
+# ============================================================================
+
+class TestWasteManagement(TestBase):
+    """Test cases for waste management module"""
+    
+    def test_waste_tc_001_form_not_saving(self):
+        """WASTE-TC-001: Pickup form doesn't save data"""
+        self.login("normal")
+        self.driver.get(f"{BASE_URL}/")
+        
+        # Fill pickup form
+        self.driver.find_element(By.ID, "pickup-name").send_keys("Test User")
+        self.driver.find_element(By.ID, "pickup-location").send_keys("Nairobi")
+        self.driver.find_element(By.ID, "pickup-waste-type").send_keys("General")
+        self.driver.find_element(By.CSS_SELECTOR, ".submit-btn").click()
+        
+        time.sleep(2)
+        
+        # Check if request was saved
+        requests_data = self.get_localstorage("cleanCity_pickupRequests")
+        
+        if not requests_data or requests_data == "[]":
+            self.handle_test_failure(
+                test_id="WASTE-TC-001",
+                description="Pickup form doesn't save data",
+                expected="Request should be saved to localStorage",
+                actual="Request not found in storage",
+                severity="Critical"
+            )
+            pytest.fail("Functional Issue: Data not persisting")
+    
+    def test_waste_tc_004_past_date_accepted(self):
+        """WASTE-TC-004: Past dates accepted in form"""
+        self.login("normal")
+        self._extracted_from_test_waste_tc_012_multiple_same_date_4("2025-11-01")
+        # Check if form accepted past date
+        success_msg = self.driver.find_element(By.CSS_SELECTOR, ".success-message")
+        self._assert_past_date_accepted(success_msg)
+
+    def _assert_past_date_accepted(self, success_msg):
+        """Helper to assert past date acceptance and handle failure"""
+        if success_msg and success_msg.is_displayed():
+            self.handle_test_failure(
+                test_id="WASTE-TC-004",
+                description="Past dates accepted for pickup scheduling",
+                expected="Should reject dates before today",
+                actual="Past date accepted and form submitted",
+                severity="High"
+            )
+            pytest.fail("Validation Issue: Past date accepted")
+    
+    def test_waste_tc_012_multiple_same_date(self):
+        """WASTE-TC-012: Multiple pickups on same date allowed"""
+        self.login("normal")
+
+        self._extracted_from_test_waste_tc_012_multiple_same_date_4("2025-12-01")
+        self._extracted_from_test_waste_tc_012_multiple_same_date_4("2025-12-01")
+        # Check if both were accepted
+        requests_data = json.loads(self.get_localstorage("cleanCity_pickupRequests") or "[]")
+        same_date_count = sum(bool(r.get("date") == "2025-12-01")
+                          for r in requests_data)
+        self._assert_multiple_same_date(same_date_count)
+
+    def _assert_multiple_same_date(self, same_date_count):
+        """Helper to assert multiple pickups on same date and handle failure"""
+        if same_date_count > 1:
+            self.handle_test_failure(
+                test_id="WASTE-TC-012",
+                description="Multiple pickups on same date allowed",
+                expected="Should prevent duplicate date scheduling",
+                actual=f"{same_date_count} requests on same date",
+                severity="High"
+            )
+            pytest.fail("Business Rule Violation: Duplicate dates allowed")
+
+    # TODO Rename this here and in `test_waste_tc_004_past_date_accepted` and `test_waste_tc_012_multiple_same_date`
+    def _extracted_from_test_waste_tc_012_multiple_same_date_4(self, arg0):
+        self.driver.get(f"{BASE_URL}/")
+        self.driver.find_element(By.ID, "pickup-date").send_keys(arg0)
+        self.driver.find_element(By.CSS_SELECTOR, ".submit-btn").click()
+        time.sleep(2)
+
+
+# ============================================================================
+# DASHBOARD MODULE TESTS (DASH-TC-001 to DASH-TC-010)
+# ============================================================================
+
+class TestDashboard(TestBase):
+    """Test cases for dashboard module"""
+    
+    def test_dash_tc_001_global_stats_leak(self):
+        """DASH-TC-001: Non-admin sees global statistics"""
+        # Set up test data
+        test_requests = [
+            {"id": 1, "userId": "admin@cleancity.com", "status": "Completed"},
+            {"id": 2, "userId": "admin@cleancity.com", "status": "Missed"}
+        ]
+        
+        self.driver.get(f"{BASE_URL}/")
+        self.driver.execute_script(
+            f"localStorage.setItem('cleanCity_pickupRequests', '{json.dumps(test_requests)}');"
+        )
+        
+        self.login("normal")
+        self.driver.get(f"{BASE_URL}/dashboard")
+        
+        time.sleep(2)
+        
+        # Check if dashboard shows other users' data
+        try:
+            stats_element = self.driver.find_element(By.CSS_SELECTOR, ".stats-total")
+            stats_count = int(stats_element.text)
+            
+            if stats_count > 0:  # Normal user should see 0
+                self.handle_test_failure(
+                    test_id="DASH-TC-001",
+                    description="Non-admin user sees global statistics",
+                    expected="Should show only user's own data",
+                    actual=f"Dashboard shows {stats_count} requests from other users",
+                    severity="High"
+                )
+                pytest.fail("Privacy Issue: Data leakage")
+        except NoSuchElementException:
+            pass
+
+
+# ============================================================================
+# ADMIN MODULE TESTS (ADMIN-TC-001 to ADMIN-TC-010)
+# ============================================================================
+
+class TestAdmin(TestBase):
+    """Test cases for admin module"""
+    
+    def test_admin_tc_001_no_auth_required(self):
+        """ADMIN-TC-001: Admin panel accessible without authentication"""
+        # Try to access admin panel without login
+        self.driver.get(f"{BASE_URL}/admin")
+        time.sleep(2)
+        
+        # Check if redirected to login
+        if "login" not in self.driver.current_url:
+            self.handle_test_failure(
+                test_id="ADMIN-TC-001",
+                description="Admin panel accessible without authentication",
+                expected="Should redirect to login page",
+                actual=f"Admin panel loaded: {self.driver.current_url}",
+                severity="Critical"
+            )
+            pytest.fail("Security Issue: No authentication required")
+
+
+# ============================================================================
+# PERFORMANCE TESTS (PERF-TC-001 to PERF-TC-005)
+# ============================================================================
+
+class TestPerformance(TestBase):
+    """Test cases for performance"""
+    
+    def test_perf_tc_001_page_load_time(self):
+        """PERF-TC-001: Initial page load time"""
+        start_time = time.time()
+        self.driver.get(BASE_URL)
+        
+        # Wait for page to fully load
+        WebDriverWait(self.driver, 10).until(
+            lambda d: d.execute_script("return document.readyState") == "complete"
+        )
+        
+        load_time = time.time() - start_time
+        
+        if load_time > 3.0:  # Should load in < 3 seconds
+            self.handle_test_failure(
+                test_id="PERF-TC-001",
+                description="Page load time exceeds 3 seconds",
+                expected="Load time < 3 seconds",
+                actual=f"Load time: {load_time:.2f} seconds",
+                severity="Medium"
+            )
+            pytest.fail(f"Performance Issue: Slow load time ({load_time:.2f}s)")
+
+
+# ============================================================================
+# TEST RUNNER CONFIGURATION
+# ============================================================================
+
+if __name__ == "__main__":
+    pytest.main([
+        __file__,
+        "-v",  # Verbose output
+        "--html=tests/test_report.html",  # HTML report
+        "--self-contained-html",  # Embed CSS in HTML
+        "-k", "test_",  # Run all tests
+        "--tb=short"  # Short traceback
+    ])
