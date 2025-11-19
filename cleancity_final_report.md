@@ -777,8 +777,8 @@ Complete test data documentation available in:
 
 Project management and issue tracking:
 - **Repository:** https://github.com/I-Macharia/wk-6-shakl
-- **Issues:** Automated issue creation on test failures
-- **Kanban Board:** GitHub Projects
+- **Issues:** Automated issue creation on test failures [Pending]
+- **Kanban Board:** [JIRA Board](https://cleancitytest.atlassian.net/jira/software/projects/SCRUM/summary?atlOrigin=eyJpIjoiZGI3MjQ0N2MzZGNlNDg1NWExNmI4YzYxOTY3NTQ2ODIiLCJwIjoiaiJ9)
 
 ---
 
