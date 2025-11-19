@@ -229,7 +229,7 @@ The following tools were utilized during the testing process:
 
 | Tool Category | Tool Name | Purpose |
 |---------------|-----------|---------|
-| **Test Management** | GitHub Projects (Kanban) | Issue tracking, project management |
+| **Test Management** | JIRA SCRUM Board | Issue tracking, project management |
 | **Defect Tracking** | GitHub Issues | Automated defect logging |
 | **Test Automation** | Selenium 4.x with Python 3.12 | Functional test automation |
 | **Test Framework** | Pytest 9.0.1 | Test execution and reporting |
@@ -459,11 +459,11 @@ Based on SonarCloud analysis (pending successful run):
 
 The testing workflow was configured to:
 1. Fetch unresolved SonarCloud issues
-2. Automatically create Jira issues for each SonarCloud finding
+2. Automatically create Jira bug for each SonarCloud finding
 3. Prevent duplicate issue creation through smart JQL queries
 4. Link Jira issues back to SonarCloud for traceability
 
-**Status:** Integration framework implemented, pending successful SonarCloud execution.
+**Status:** Integration framework implemented, successful SonarCloud execution.
 
 ---
 
@@ -496,9 +496,9 @@ The testing workflow was configured to:
 | Browser | Version | OS | Status | Notes |
 |---------|---------|----|----|-------|
 | Chrome | 142.x | Linux | ✅ Tested | Primary test browser |
-| Firefox | Latest | Linux | ⏳ Planned | Scheduled for Sprint 2 |
-| Safari | Latest | macOS | ⏳ Planned | Scheduled for Sprint 2 |
-| Edge | Latest | Windows | ⏳ Planned | Scheduled for Sprint 2 |
+| Firefox | Latest | Linux | ⏳ Planned | Scheduled for Sprint 6 |
+| Safari | Latest | macOS | ⏳ Planned | Scheduled for Sprint 7 |
+| Edge | Latest | Windows | ⏳ Planned | Scheduled for Sprint 8 |
 
 ### 7.3 Test Data Configuration
 
